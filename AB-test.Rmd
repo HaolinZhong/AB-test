@@ -1,0 +1,95 @@
+---
+title: "AB test in R"
+author: "Haolin Zhong"
+date: "2021/12/20"
+output: rmdformats::readthedown
+---
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(
+	echo = TRUE,
+	warning = FALSE,
+	message = FALSE
+)
+```
+
+
+## Dependencies
+
+```{r}
+library(tidyverse)
+library(lubridate)
+```
+
+
+# AB test
+
+The core idea of AB test is to reasonably compare two version of something (maybe webpage, UI, button...) and to decide which one is better.
+
+# Settings in a case of AB test
+
+- **Question**: Will changing the homepage photo result in more "ADOPT TODAY" clicks?
+- **Hypothesis**: Using a photo of a cat wearing a hat will result in more "ADOPT TODAY!" clicks. 
+- **Dependent Variable**: Clicked "ADOPT TODAY!" button or not. 
+  - Measure: **Conversion Rate**: the proportion of users who clicked among users who saw the photo.
+- **Independent Variable**: Homepage photo.
+
+
+# EDA
+
+Before conducting experiment, EDA will play a vital role in determining experiment parameters.
+
+## Overview of conversion rate
+
+- At first we check mean conversion rate:
+
+```{r}
+click_df = read_csv("data/click_data.csv")
+click_df %>% pull(clicked_adopt_today) %>% mean()
+```
+
+- Plot conversion rate over months:
+
+```{r, out.width= "75%"}
+click_month = 
+  click_df %>% 
+  mutate(month = as.factor(month(visit_date, label = TRUE, abbr = TRUE, locale = "US"))) %>% 
+  group_by(month) %>% 
+  summarize(conversion_rate = mean(clicked_adopt_today))
+
+click_month %>% 
+  ggplot(aes(x = month, y = conversion_rate)) +
+  geom_point() +
+  geom_line(aes(group = 1))
+```
+
+An obvious seasonal effect can be observed from the plot. In fact, conversion rate is not only affected by design of the homepage. Thus, to ensure comparability between test and control group, we should conduct experiment simultaneously, i.e. display test photo & control photo simultaneously, to restrict the seasonal effect.
+
+## Power Analysis
+
+Sample statistics are greatly dependent on sample size. Subsequently, here comes an important problem: to ensure the statistical power of the experiment result, we should obtain how many subject at least? (i.e. what is the minimum sample size.) Power analysis provides solution for this problem.
+
+In power analysis, several hyper-parameters should be predefined:
+
+- **statistical test**: statistical test you plan to run
+- **baseline value**: value for the current control condition
+- **desired value**: expected value for the test condition
+- **proportion of the data** from the test condition (ideally 0.5)
+- **significance threshold / alpha**: level where effect significant (generally 0.05)
+- **power / 1 - beta**: probability correctly rejecting null hypothesis (generally 0.8)
+
+Once we defined these hyper parameters, we can use the function `SSizeLogisticBin` from package `powerMediation` to calculate the ideal sample size.
+
+```{r}
+library(powerMediation)
+SSizeLogisticBin(p1 = 0.2,     # baseline value
+                 p2 = 0.3,     # desired value
+                 B = 0.5,      # proportion of the data
+                 alpha = 0.05, # significance level
+                 power = 0.8)  # power
+```
+
+# Experiment
+
+
+
